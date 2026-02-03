@@ -1,0 +1,15 @@
+{
+  "name": "DRM-play",
+  "short_name": "DRM-play",
+  "display": "fullscreen",
+  "background_color": "#2A3443",
+  "description": "Bit more \"open\" version of OTT-Play by Alex",
+  "theme_color": "#2A3443",
+  "icons": [
+    {
+      "src": "/android-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "name": "ott-app",
+  "version": "1.1.0",
+  "description": "OTT DRM Play desktop application",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": ["electron", "ott", "drm", "desktop"],
+  "author": "Cline",
+  "license": "MIT",
+  "homepage": "https://ott.drm-play.com/",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "build": {
+    "appId": "com.ott.drm.play",
+    "productName": "OTT DRM Play",
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "AudioVideo"
+    },
+    "icon": "icon.png",
+    "asar": true,
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/*.md",
+      "!**/node_modules/*.txt",
+      "!**/node_modules/*.yml",
+      "!**/node_modules/*.yaml",
+      "!**/node_modules/*.json",
+      "!**/node_modules/.github",
+      "!**/node_modules/.vscode",
+      "!**/node_modules/.nyc_output",
+      "!**/node_modules/.eslintrc*",
+      "!**/node_modules/.prettierrc*",
+      "!**/node_modules/.*",
+      "!**/node_modules/LICENSE",
+      "!**/node_modules/license",
+      "!**/node_modules/LICENCE",
+      "!**/node_modules/licence",
+      "!**/node_modules/*.license",
+      "!**/node_modules/*.map",
+      "!**/node_modules/electron",
+      "!**/node_modules/electron-devtools-installer",
+      "!**/node_modules/electron-localshortcut",
+      "!**/node_modules/electron-window-state",
+      "icon.png"
+    ],
+    "deb": {
+      "depends": ["libgconf-2-4", "libappindicator3-1", "libxtst6", "libnss3", "libasound2"],
+      "maintainer": "OTT DRM Play Team",
+      "vendor": "OTT DRM Play",
+      "category": "AudioVideo",
+      "priority": "optional",
+      "icon": "icon.png",
+      "desktop": {
+        "Name": "OTT DRM Play",
+        "Comment": "OTT DRM Play desktop application",
+        "Keywords": ["OTT", "DRM", "Video", "Streaming"],
+        "Categories": ["AudioVideo", "Video", "Player"],
+        "Icon": "/usr/share/icons/hicolor/0x0/apps/ott-app.png"
+      }
+    }
+  }
+}
