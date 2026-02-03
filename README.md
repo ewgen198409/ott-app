@@ -14,6 +14,10 @@
 - Поддержка управления громкостью
 - Возможность просмотра в режиме PiP (Picture-in-Picture)
 
+## Скачивание
+
+[![GitHub Release Downloads](https://img.shields.io/github/downloads/ewgen198409/ott-app/total?label=Downloads&style=flat-square)](https://github.com/ewgen198409/ott-app/releases)
+
 ## Технологии
 
 - HTML5
