@@ -68,7 +68,8 @@
         "Comment": "OTT DRM Play desktop application",
         "Keywords": ["OTT", "DRM", "Video", "Streaming"],
         "Categories": ["AudioVideo", "Video", "Player"],
-        "Icon": "/usr/share/icons/hicolor/0x0/apps/ott-app.png"
+        "Icon": "/usr/share/icons/hicolor/0x0/apps/ott-app.png",
+        "StartupWMClass": "com.ott.drm.play"
       }
     }
   }

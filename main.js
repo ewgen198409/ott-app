@@ -1,9 +1,27 @@
 const { app, BrowserWindow, Menu, dialog } = require('electron');
 const path = require('path');
 
+// Отключаем аппаратное ускорение для использования только программного видеоускорения
+app.disableHardwareAcceleration();
+
+// Устанавливаем уникальный идентификатор приложения для избежания дублирования иконок в панели задач
+if (process.platform === 'linux') {
+  app.setAppUserModelId('com.ott.drm.play');
+} else if (process.platform === 'win32') {
+  app.setAppUserModelId('com.ott.drm.play');
+}
+
 let mainWindow;
+let isWindowCreated = false;
 
 function createWindow() {
+  // Проверяем, был ли уже создано окно, чтобы избежать дублирования
+  if (isWindowCreated) {
+    return;
+  }
+  
+  isWindowCreated = true;
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -12,7 +30,10 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false
-    }
+    },
+    // Убеждаемся, что окно имеет правильную иконку и идентификатор
+    title: 'OTT DRM Play',
+    show: false // Не показываем окно сразу
   });
 
   mainWindow.loadFile(path.join(__dirname, 'src', 'ott.drm-play.com', 'index.html'));
@@ -159,7 +180,9 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -168,7 +191,12 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  // Проверяем, есть ли уже открытые окна перед созданием нового
+  const existingWindows = BrowserWindow.getAllWindows();
+  if (existingWindows.length === 0) {
     createWindow();
+  } else {
+    // Если окно уже существует, активируем его
+    existingWindows[0].focus();
   }
 });
