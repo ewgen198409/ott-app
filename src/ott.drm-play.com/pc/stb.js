@@ -105,9 +105,11 @@ function closeFullscreen() {
     document.msExitFullscreen();
   }
 }
-function stbExit(){window.history.back(); }
 
-//function stbExit(){window.close();}
+function stbExit(){
+    window.close();
+    // console.log('stbExit');
+}
 function onEnded() {
    if (player){
    player.unload()
@@ -155,27 +157,31 @@ async function _startPlayer(url) {
   if(url.indexOf('strm.yandex.ru')>0||url.indexOf('.cdn.ngenix.net')>0){player.configure({drm:{clearKeys:key}});}
   try {await player.load(url);video.play();}catch(e){onError(e);}
 }
-
+listdrm=1;
 var hls = null, player = null, url_c=null,dash=null,mpeg_ts=null,okko_id=1,drm_okko=0,okko_pl=0;
-var url_r;var d_pause=0,ua;
+var url_r;var drm,drmVMX,d_pause=0,eRest=0;
 function stbPlay(url, pos){ drm_okko=0;
-    try{ua=chanels[curList[primaryIndex]].ua !="" ?chanels[curList[primaryIndex]].ua: 0;}catch (e){ua=0;}
-    console.log ("ua: "+ua);
-
+    try{drm=chanels[curList[primaryIndex]].drm;}catch (e){drm=0;}
+    if (drm==1&&url.indexOf('cdn.ngenix.net') >0||url.indexOf('DRM_TYPE=VERIMATRIX')>0){
+       drmVMX=1; //url='https://zabava-block-htvod.cdn.ngenix.net/rtk_block.m3u8';
+       url=url.replace(/zabava-htlive\.cdn\.ngenix\.net\/hls/g,"s25617.cdn.ngenix.net/mdrm");
+//       alert ("Verimatrix DRM disabled");
+    }else{drmVMX=0};
         if (url.indexOf('starnet-md.') >0){url=starnet(url);}
-        else if (url.indexOf('//www.voka.tv/') >0){url=voka(url);}
-        else if (url.indexOf('24htv.platform24.tv') >0||url.indexOf('api.24h.tv') >0) {url=tv24(url);}
+        else if (url.indexOf('voka.tv') >0||url.indexOf('tvstart.ru') >0){url=voka(url);}
+        else if (url.indexOf('bluepoint') >0){url=bluepoint(url);}
+        else if (url.indexOf('24htv') >0) {url=tv24(url);}
         else if (url.indexOf('id=okko') >0) {drm_okko=1;url=okko(url);} 
         else if (url.indexOf('.drmplay.top') >0) {url=repurl(url);} 
-    if(pos) url += '#t='+pos; url_c=url,url_r=url;if(playType == 0){d_pause=0;}else{d_pause=1;} //eRest=0;
+    if(pos) url += '#t='+pos; url_c=url,url_r=url;if(playType == 0){d_pause=0;}else{d_pause=1;}eRest=0;
 
     if(hls) {onEnded();hls.destroy(); hls = null;}
     if (mpeg_ts){onEnded();mpegts_destroy();mpeg_ts=null}
     if((sPlayers === 2) && shaka.Player.isBrowserSupported()) {
         if(!player||player==null) {_initPlayer();} else{player.unload();}
         _startPlayer(url);
-    }else if ((url.indexOf('.m3u8')>=0&&Hls.isSupported())||sPlayers === 1){
-        if(player) {onEnded();player=null;eRest=5;}
+    }else if (url.indexOf('.m3u8') >0&&Hls.isSupported()){
+        if(player) {onEnded();player.destroy();player=null;eRest=5;}
         hls = new Hls();
         hls.loadSource(url);
         hls.attachMedia(video);
@@ -218,7 +224,6 @@ function stbPlay(url, pos){ drm_okko=0;
     video.play();
     }
 }
- 
 function mpegts_destroy() {
    mpeg_ts.pause();
    mpeg_ts.unload();
@@ -238,30 +243,9 @@ function stbStop(){
 function stbPause(){video.pause();d_pause=1;if(mpeg_ts) {mpeg_ts.pause();}}
 function stbContinue(){video.paused ? video.play() : video.pause();}
 function stbIsPlaying(){return !video.paused}
-function stbToggleMute(){
-    video.muted = !video.muted;
-    if(video.muted){
-        $('#mute').show();
-        $('#volume_div').show();
-        clearTimeout(window.volumeTimeout);
-        window.volumeTimeout = setTimeout(function(){ $('#volume_div').hide(); }, 2000);
-    } else {
-        $('#mute').hide();
-        _showVolume(video.volume * 100);
-    }
-}
+function stbToggleMute(){video.muted = !video.muted;}
 function stbGetVolume(){ return video.volume*100; }
-function stbSetVolume(value){ 
-    video.volume = value/100; 
-    _showVolume(value);
-}
-function _showVolume(value){
-    $('#volume').css('width', value + '%');
-    $('#volume_div').show();
-    $('#mute').hide();
-    clearTimeout(window.volumeTimeout);
-    window.volumeTimeout = setTimeout(function(){ $('#volume_div').hide(); }, 2000);
-}
+function stbSetVolume(value){ video.volume = value/100; }
 function stbGetPosTime(){return video.currentTime;}
 function stbSetPosTime(value){video.currentTime = value;if(playType<0) updateMediaInfo();}
 function stbGetLen(){return video.duration;}
@@ -287,7 +271,6 @@ function stbInfo(){
         '<br/>platform: ' + navigator.platform
     );
     $.get('http://api.ipify.org', function(data){ $('#listAbout').append('<br/>Ip address: ' + data); });
-    $.post('http://drm-play.com/test.php', {a:box_mac_},function(data){$('#listAbout').append('<br/><br/>'+data);});
 }
 
 // var sZoom = 0, arrayZoom = ['1', '1.1', '1.2', '1.3', '1.4', '1.5'];
@@ -542,6 +525,7 @@ stb.getMacAddress = function (){
 //};
 // var wi = 1280, hi = 720;
 // var wi = 1920, hi = 1080;
+var _Dec = 0;
 function videoEvent(event) {
     // console.log('video > '+event.type);
 }
@@ -565,36 +549,15 @@ function setTransform(){
 }
 document.body.style.cursor = "pointer"; // iOS bug!!!
 function _showStreamData(){
-    if(playType<0)updateMediaInfo();
+    if(playType<0)updateMediaInfo(); eRest=eRest+1;
     if(video.videoWidth) $('#video_res').html('<br/>' + video.videoWidth + 'x' + video.videoHeight);
-//    if(!stbIsPlaying()&&d_pause==0&&eRest>3){stbStop();stbPlay(url_r);aRest+=1;alert ('reStart:'+aRest);}eRest+=1; console.log('eRest:'+eRest);
-//    if(!stbIsPlaying()&&d_pause==0&&eRest>3){stbPlay(url_r);}
+    if(!stbIsPlaying()&&d_pause==0&&eRest>3){stbPlay(url_r);}
         if(video.webkitVideoDecodedByteCount != undefined)
                 if(video.videoWidth && (video.webkitVideoDecodedByteCount-_Dec)>0)
                     $('#video_res').html('<br/>' + video.videoWidth + 'x' + video.videoHeight+ '<br/>' + Math.round((video.webkitVideoDecodedByteCount-_Dec)*8/1024/1024 * 100) / 100+ ' Mbps');
                 _Dec = video.webkitVideoDecodedByteCount;
 }
-var _Dec = 0,ct_1=0,ct_2=0;
-function _showStreamData(){
-    if(playType<0) {updateMediaInfo();}
-    if(video.videoWidth) $('#video_res').html('<br/>' + video.videoWidth + 'x' + video.videoHeight);
-    ct_1=video.currentTime;
-    if(ct_1<ct_2&&d_pause==0&&eRest>4){
-         if (aRest>19){stbStop();infoBox(_('The connection with the channel\'s broadcast server is unstable <br> After ')+aRest+_(' unsuccessful attempts to establish a connection<br>PLAYER OPERATION STOPPED'));return;}
-         aRest+=1;alert ('rStart:'+aRest);stbStop();stbPlay(url_r);}
-    eRest=eRest+1;if (ct_1!=0){ct_2=ct_1+1;}
-    if(video.webkitVideoDecodedByteCount != undefined)
-                if(video.videoWidth && (video.webkitVideoDecodedByteCount-_Dec)>0)
-                    $('#video_res').html('<br/>' + video.videoWidth + 'x' + video.videoHeight+ '<br/>' + Math.round((video.webkitVideoDecodedByteCount-_Dec)*8/1024/1024 * 100) / 100+ ' Mbps');
-                _Dec = video.webkitVideoDecodedByteCount;
-}
 var _tim = null;
-
-var timerID = null, isStalling = false;
-function reportStalling() {
-  if ((!video.paused && !video.ended) || isStalling) {stbStop();stbPlay(url_r);aRest+=1;alert ('reStart:'+aRest);}
-}
-
 function stbInit(){
     $('body').css( {'background-color': '#111'} );
     // var s = Math.min(window.innerWidth/16,window.innerHeight/9);
@@ -619,8 +582,7 @@ function stbInit(){
         // $.getScript(host+"/js/dist/layouts/en-boxed.js");
         // $.getScript(host+"/js/dist/layouts/num.js");
         // $.getScript(host+"/js/dist/smartTvKeyboard.min.js");
-//        var key;$.getScript(host+'/pc/stb.php');
-        var key;$.getScript('https://ott.drm-play.com/pc/stb.php');
+        var key;$.getScript(host+'/pc/stb.php');
         $.getScript('https://cdn.jsdelivr.net/npm/hls.js@latest');
         $.getScript('https://github.com/videojs/mux.js/releases/download/v6.2.0/mux.js');
 //        $.getScript('//github.com/videojs/mux.js/releases/latest/download/mux.js');
@@ -629,7 +591,6 @@ function stbInit(){
             // Install built-in polyfills to patch browser incompatibilities.
             shaka.polyfill.installAll();
         });
-
 
         document.addEventListener('visibilitychange', function(){
             console.log('pc');
@@ -669,10 +630,10 @@ function stbInit(){
             $('#video_res').text('');
             if(playType<0) updateMediaInfo();
             if(video.videoWidth) $('#video_res').html('<br/>' + video.videoWidth + 'x' + video.videoHeight);
-              clearInterval(_tim);
-             _tim = setInterval(_showStreamData, 5000);
             execCHarr('aAspects', _setAspect);
             // execCHarr('aZooms', _setZoom);
+              clearInterval(_tim);
+             _tim = setInterval(_showStreamData, 4000);
             execCHarr('aSubs', _setSubtitleTrack);
             execCHarr('aAudios', _setAudioTrack);
         });
@@ -682,16 +643,6 @@ function stbInit(){
             // if(playType<0) updateMediaInfo();
             // if(video.videoWidth) $('#video_res').html('<br/>' + video.videoWidth + 'x' + video.videoHeight);
         });
-        video.addEventListener("play", function(){
-        });
-        video.addEventListener("timeupdate", function() {
-//            clearTimeout(timerID);
-            isStalling = false;
-//            console.log('timeupdate:'+isStalling);
-            // remove stalling indicator if any ...
-//            timerID = setTimeout(reportStalling, 4000);  // 4 sec timeout
-        });
-        video.addEventListener("stalled", function() {isStalling = true;console.log('stalled:'+isStalling);})
         video.addEventListener("error", function(){
             var me = ['', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'];
             console.log('video > error: '+video.error.code+'-'+me[video.error.code]||video.error.code+(video.error.message?' ('+video.error.message+')':''));
@@ -751,18 +702,3 @@ function stbInit(){
     // window.onkeyup = keyHandler;
     // infoBox('???????/!!!<br/><br/>');
 }
-function read_json(file, callback) {
-    var rawFile = new XMLHttpRequest();
-    rawFile.overrideMimeType("application/json");
-    rawFile.open("GET", file, true);
-    rawFile.onreadystatechange = function() {
-        if (rawFile.readyState === 4 && rawFile.status == "200") {
-            callback(rawFile.responseText);
-        }
-    }
-    rawFile.send(null);
-}
-//read_json("http://ott.drm-play.com/m3u/g_full.json", function(text){epg_list = JSON.parse(text); epg_loc=1;});
-
-//$.ajax({ url: host+'/m3u/g_full.json', dataType: 'json',async: true,cache:true,type:"GET",timeout: 10000, success: [function(data){epg_list = data;},function(){epg_loc=1;}],}); 
-////$.ajax({ url: host+'/m3u/g_full.json', dataType: 'json',async: true,cache:true,type:"GET",timeout: 5000, success:function(data){epg_list = data;},complete: function() {if (epg_list.length >0){epg_loc=1;}},}); 

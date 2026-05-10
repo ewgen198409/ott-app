@@ -38,7 +38,7 @@ try {
 //if (useragent.indexOf('Android')>0){scheme='https://';}
 //if (useragent.indexOf('Maple')>0||useragent.indexOf('LG SimpleSmart')>0||useragent.indexOf('LG NetCast.TV')>0 ||useragent.indexOf('MAG')>0){scheme='http://';}
 //console.log('scheme:'+scheme);
-host=scheme+'ott.drm-play.com';
+if(typeof host === 'undefined') host=scheme+'ott.drm-play.com';
 
 //if(typeof(host) == "undefined") host = '';
 
@@ -310,8 +310,6 @@ if(navigator.userAgent.toLowerCase().search(/maple/)==-1){ // no old samsung mod
     else if (document.attachEvent) document.attachEvent("onvisibilitychange", function(){ if(document.hidden) body_onUnload(); });
     if (window.addEventListener) window.addEventListener("beforeunload", body_onUnload);
     else if (window.attachEvent) window.attachEvent("onbeforeunload", body_onUnload);
-    if (window.addEventListener) window.addEventListener("unload", body_onUnload);
-    else if (window.attachEvent) window.attachEvent("onunload", body_onUnload);
 
     // prevPage -> RETURN key
     // var backFunction = function(){
@@ -3035,7 +3033,7 @@ var sNoSmall = 0,
     sPSchannels = 1, sPSoptions = 0, sPSprovs = 0,
     sHDMIsupport = 0,
     sAutorun = 0,
-    sPlayers = 0,
+    sPlayers = 1,
     ePlay = 0,
     eAce='127.0.0.1:6878',
     sRestart=0,
@@ -3044,7 +3042,7 @@ var sNoSmall = 0,
     satv=atob('NzcuNzIuODUuMjQ4LDc3LjcyLjg1LjI0OQ=='),
     slame=atob('MTBhYTA5MTE0NTg4YTVmNzUwZWFlZDVlOWRlNTM3MDRjODU4ZTE0NA'),
     sobt=atob('MTc2LjIyMi4xOTAuNzMsMTc2LjIyMi4xOTAuNzQsMTc2LjIyMi4xOTAuNzUsMTc2LjIyMi4xOTAuMTQ4LDE3Ni4yMjIuMTkwLjE0OSwxNzYuMjIyLjE5MC4xNTA='),
-    sBufSize = 0;
+    sBufSize = 3;
 function setPipPosBuf(){
     if(typeof(setPipPos) !== "function") return;
     var ll = Math.min(getWidthK(), getHeightK()),
@@ -5223,7 +5221,7 @@ $(document).ready(function(){
         sPSprovs = parseInt(stbGetItem('sPSprovs')) || 0;
         sHDMIsupport = parseInt(stbGetItem('sHDMIsupport')) || 0;
         sAutorun = parseInt(stbGetItem('sAutorun')) || 0;
-        sBufSize = parseInt(stbGetItem('sBufSize')) || 0;
+        sBufSize = parseInt(stbGetItem('sBufSize')) || 3;
         parentPIN = stbGetItem('parentPIN') || '1234';
         sHideMenus = (stbGetItem('sHideMenus') || '').split(',');
         if(sHideMenus[0]=='') sHideMenus = [];
