@@ -1,10 +1,12 @@
 const { app, BrowserWindow, Menu, dialog } = require('electron');
 const path = require('path');
+const http = require('http');
+const fs = require('fs');
 
-// Отключаем аппаратное ускорение для использования только программного видеоускорения
+// Отключаем аппаратное ускорение
 app.disableHardwareAcceleration();
 
-// Устанавливаем уникальный идентификатор приложения для избежания дублирования иконок в панели задач
+// Устанавливаем уникальный идентификатор приложения
 if (process.platform === 'linux') {
   app.setAppUserModelId('com.ott.drm.play');
 } else if (process.platform === 'win32') {
@@ -13,9 +15,81 @@ if (process.platform === 'linux') {
 
 let mainWindow;
 let isWindowCreated = false;
+let server;
+let appDir;
 
-function createWindow() {
-  // Проверяем, был ли уже создано окно, чтобы избежать дублирования
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.ttf': 'font/ttf',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.svg': 'image/svg+xml',
+  '.php': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json'
+};
+
+function startServer() {
+  return new Promise((resolve, reject) => {
+    server = http.createServer((req, res) => {
+      // Убираем query-параметры (?11 и т.д.)
+      const urlPath = req.url.split('?')[0].split('#')[0];
+      
+      // Определяем путь к файлу
+      let filePath = path.join(appDir, urlPath === '/' ? 'index.html' : urlPath);
+      
+      // Если файл не найден, пробуем добавить .html
+      if (!fs.existsSync(filePath)) {
+        const htmlPath = filePath + '.html';
+        if (fs.existsSync(htmlPath)) {
+          filePath = htmlPath;
+        }
+      }
+      
+      const ext = path.extname(filePath);
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      
+      fs.readFile(filePath, (err, data) => {
+        if (err) {
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end('Not Found');
+          return;
+        }
+        
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache'
+        });
+        res.end(data);
+      });
+    });
+    
+    server.listen(12345, '127.0.0.1', () => {
+      resolve(12345);
+    });
+    
+    server.on('error', (e) => {
+      if (e.code === 'EADDRINUSE') {
+        // Порт занят, пробуем другой
+        server.listen(0, '127.0.0.1', () => {
+          resolve(server.address().port);
+        });
+      } else {
+        reject(e);
+      }
+    });
+  });
+}
+
+function createWindow(port) {
   if (isWindowCreated) {
     return;
   }
@@ -29,97 +103,48 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false
+      webSecurity: false,
+      allowRunningInsecureContent: true
     },
-    // Убеждаемся, что окно имеет правильную иконку и идентификатор
     title: 'OTT DRM Play',
-    show: false // Не показываем окно сразу
+    show: false
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'src', 'ott.drm-play.com', 'index.html'));
+  mainWindow.loadURL('http://127.0.0.1:' + port + '/index.html');
 
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.show();
     mainWindow.setTitle('OTT DRM Play');
   });
 
-  // Создаем кастомное меню
   const menuTemplate = [
     {
       label: 'Файл',
       submenu: [
-        {
-          label: 'Перезагрузить страницу',
-          accelerator: 'Ctrl+R',
-          click: () => mainWindow.reload()
-        },
-        {
-          type: 'separator'
-        },
-        {
-          label: 'Закрыть приложение',
-          accelerator: 'Ctrl+Q',
-          click: () => app.quit()
-        }
+        { label: 'Перезагрузить страницу', accelerator: 'Ctrl+R', click: () => mainWindow.reload() },
+        { type: 'separator' },
+        { label: 'Закрыть приложение', accelerator: 'Ctrl+Q', click: () => app.quit() }
       ]
     },
     {
       label: 'Вид',
       submenu: [
-        {
-          label: 'Полноэкранный режим',
-          accelerator: 'F11',
-          click: () => mainWindow.setFullScreen(!mainWindow.isFullScreen())
-        },
-        {
-          type: 'separator'
-        },
-        {
-          label: 'Увеличить масштаб',
-          accelerator: 'Ctrl+=',
-          click: () => mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5)
-        },
-        {
-          label: 'Уменьшить масштаб',
-          accelerator: 'Ctrl+-',
-          click: () => mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5)
-        },
-        {
-          label: 'Сбросить масштаб',
-          accelerator: 'Ctrl+0',
-          click: () => mainWindow.webContents.setZoomLevel(0)
-        },
-        {
-          type: 'separator'
-        },
-        {
-          label: 'Инструменты разработчика',
-          accelerator: 'Ctrl+Shift+I',
-          click: () => mainWindow.webContents.toggleDevTools()
-        }
+        { label: 'Полноэкранный режим', accelerator: 'F11', click: () => mainWindow.setFullScreen(!mainWindow.isFullScreen()) },
+        { type: 'separator' },
+        { label: 'Увеличить масштаб', accelerator: 'Ctrl+=', click: () => mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5) },
+        { label: 'Уменьшить масштаб', accelerator: 'Ctrl+-', click: () => mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5) },
+        { label: 'Сбросить масштаб', accelerator: 'Ctrl+0', click: () => mainWindow.webContents.setZoomLevel(0) },
+        { type: 'separator' },
+        { label: 'Инструменты разработчика', accelerator: 'Ctrl+Shift+I', click: () => mainWindow.webContents.toggleDevTools() }
       ]
     },
     {
       label: 'Аудио',
       submenu: [
-        {
-          label: 'Включить/выключить звук',
-          accelerator: 'M',
-          click: () => mainWindow.webContents.executeJavaScript('stbToggleMute()')
-        },
-        {
-          type: 'separator'
-        },
-        {
-          label: 'Увеличить громкость',
-          accelerator: 'Up',
-          click: () => mainWindow.webContents.executeJavaScript('stbSetVolume(Math.min(100, stbGetVolume() + 10))')
-        },
-        {
-          label: 'Уменьшить громкость',
-          accelerator: 'Down',
-          click: () => mainWindow.webContents.executeJavaScript('stbSetVolume(Math.max(0, stbGetVolume() - 10))')
-        }
+        { label: 'Включить/выключить звук', accelerator: 'M', click: () => mainWindow.webContents.executeJavaScript('stbToggleMute()') },
+        { type: 'separator' },
+        { label: 'Увеличить громкость', accelerator: 'Up', click: () => mainWindow.webContents.executeJavaScript('stbSetVolume(Math.min(100, stbGetVolume() + 10))') },
+        { label: 'Уменьшить громкость', accelerator: 'Down', click: () => mainWindow.webContents.executeJavaScript('stbSetVolume(Math.max(0, stbGetVolume() - 10))') }
       ]
     },
     {
@@ -129,22 +154,10 @@ function createWindow() {
           label: 'Очистить кеш приложения',
           click: async () => {
             try {
-              // Очищаем кеш
               await mainWindow.webContents.session.clearCache();
               await mainWindow.webContents.session.clearStorageData();
-              
-              // // Показываем сообщение об успешной очистке
-              // dialog.showMessageBox({
-              //   type: 'info',
-              //   title: 'Очистка кеша',
-              //   message: 'Кеш приложения успешно очищен',
-              //   buttons: ['OK']
-              // });
-              
-              // Перезагружаем страницу для применения изменений
               mainWindow.reload();
             } catch (error) {
-              // Обрабатываем ошибки
               dialog.showMessageBox({
                 type: 'error',
                 title: 'Ошибка',
@@ -180,23 +193,39 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 }
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  // Определяем директорию приложения через app.getAppPath()
+  // Это корректно работает как в разработке, так и в собранном приложении с ASAR
+  const appPath = app.getAppPath();
+  appDir = path.join(appPath, 'src', 'ott.drm-play.com');
+  
+  console.log('App path:', appPath);
+  console.log('Static dir:', appDir);
+  
+  const port = await startServer();
+  createWindow(port);
 });
 
 app.on('window-all-closed', () => {
+  if (server) {
+    server.close();
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('activate', () => {
-  // Проверяем, есть ли уже открытые окна перед созданием нового
   const existingWindows = BrowserWindow.getAllWindows();
   if (existingWindows.length === 0) {
     createWindow();
   } else {
-    // Если окно уже существует, активируем его
     existingWindows[0].focus();
+  }
+});
+
+app.on('before-quit', () => {
+  if (server) {
+    server.close();
   }
 });
