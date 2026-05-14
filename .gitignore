@@ -2,6 +2,7 @@
 build/
 dist/
 out/
+epg.xml
 
 # Dependencies
 node_modules/
