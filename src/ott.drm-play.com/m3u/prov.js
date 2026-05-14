@@ -20,10 +20,10 @@ function loadM3Uparams(){
     m3uArr = providerGetItem("m3uArr");
     drm_list=parseInt(providerGetItem('drm_list')) || 0;
     if(!m3uArr) {
-        m3uArr = {active:0, M3Us: [{www:'http://cdntv.online/hls/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', medUrl:'http://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]};if(drm_list==0){drm_list=1;} 
+        m3uArr = {active:0, M3Us: [{www:'http://cdntv.online/hls/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', epg:'http://epg.cdntv.online/full.xml.gz', medUrl:'http://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]};if(drm_list==0){drm_list=1;} 
     }
     else {try{ m3uArr = JSON.parse(m3uArr); 
-    }catch(e){ m3uArr = {active:0, M3Us: [{www:'http://cdntv.online/hls/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', medUrl:'http://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]}; }}
+    }catch(e){ m3uArr = {active:0, M3Us: [{www:'http://cdntv.online/hls/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', epg:'http://epg.cdntv.online/full.xml.gz', medUrl:'http://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]}; }}
     for(var i = m3uArr.M3Us.length; i < 25; i++)
         m3uArr.M3Us[i] = {www:'', rechours:0};
     if(browserName() == 'dune') try{
@@ -238,7 +238,7 @@ function getEpgList(cepg, callback){
     $(launch_id).append(_('epgs...'));
     //var head={'X-Svc':btoa(Math.round(Date.now()/1000))};
     $.ajax({
-        url: host+'/m3u/gelist.php', data: {list: JSON.stringify(cepg),a:box_mac_},type:'post',timeout: 120000,
+        url: scheme+'epg.drm-play.com/m3u/gelist.php', data: {list: JSON.stringify(cepg),a:box_mac_},type:'post',timeout: 120000,
         success: function(data){
             if(data) //for (var val in data) { chanels[val].epg_url = data[val]; };
             cList.forEach(function(val){
