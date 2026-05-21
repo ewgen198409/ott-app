@@ -2,6 +2,40 @@ version += ' m3u-0218';
 var m3uArr, _number = 0;
 p_pref = 'm3u';
 parental = /XXX|Взрослые|Для взрослых|Взрослое|Эротика|18+|Adults|ХХХ/;
+var DEFAULT_EPG_URL = 'http://epg.it999.ru/edem.xml.gz';
+
+function cleanupResources() {
+    // Очистка таймеров
+    if(window._tim) {
+        clearInterval(window._tim);
+        window._tim = null;
+    }
+    if(window._tmedia) {
+        clearTimeout(window._tmedia);
+        window._tmedia = null;
+    }
+    if(window._gplay) {
+        clearTimeout(window._gplay);
+        window._gplay = null;
+    }
+    
+    // Очистка кеша
+    if(typeof epgCashObj === 'object') {
+        for(var key in epgCashObj) {
+            delete epgCashObj[key];
+        }
+    }
+    if(epgCashArr) epgCashArr.length = 0;
+    
+    // Сброс глобальных массивов
+    if(cList) cList.length = 0;
+    if(chanels) {
+        for(var key in chanels) delete chanels[key];
+    }
+    if(cats) {
+        for(var key in cats) delete cats[key];
+    }
+}
 
 function keyNames4(keyName){
     if(pdsa.indexOf(keyName) != -1) {keyName += m3uArr.active || '';}
@@ -17,6 +51,7 @@ if(typeof(stbGetItem)==='function'){
     providerDelItem = function (keyName){localStorage.removeItem(p_pref + keyNames4(keyName)); }
 }
 function loadM3Uparams(){
+	cleanupResources();
     m3uArr = providerGetItem("m3uArr");
     drm_list=parseInt(providerGetItem('drm_list')) || 0;
     if(!m3uArr) {
@@ -236,16 +271,48 @@ function loadPlaylist(url, success, callback){
 function getEpgList(cepg, callback){
     if(!cList.length){ callback(); return; }
     $(launch_id).append(_('epgs...'));
-    //var head={'X-Svc':btoa(Math.round(Date.now()/1000))};
+    var reqData = {list: JSON.stringify(cepg),a:box_mac_};
+    var localUrl = ((window.location && window.location.origin) ? window.location.origin : '') + '/m3u/gelist.php';
+    var canUseRemoteEpg = /^https?:\/\/([a-z0-9-]+\.)*drm-play\.com(?::\d+)?$/i.test((window.location && window.location.origin) ? window.location.origin : '');
+    var done = false;
+    function finish(){
+        if(done) return;
+        done = true;
+        callback();
+    }
+    function applyEpgData(data){
+        cList.forEach(function(val){
+            if(data && data[val]) {
+                chanels[val].epg_url = data[val];
+                return;
+            }
+            // Fallback: try direct tvg-id based json when mapping service is unavailable.
+            if(chanels[val] && chanels[val].epg) {
+                chanels[val].epg_url = chanels[val].epg;
+            }
+        });
+    }
     $.ajax({
-        url: scheme+'epg.drm-play.com/m3u/gelist.php', data: {list: JSON.stringify(cepg),a:box_mac_},type:'post',timeout: 120000,
-        success: function(data){
-            if(data) //for (var val in data) { chanels[val].epg_url = data[val]; };
-            cList.forEach(function(val){
-                if(data[val]) chanels[val].epg_url = data[val];
+        url: localUrl,
+        data: reqData,
+        type: 'post',
+        timeout: 120000,
+        success: applyEpgData,
+        error: function(){
+            if(!canUseRemoteEpg){
+                finish();
+                return;
+            }
+            $.ajax({
+                url: scheme+'epg.drm-play.com/m3u/gelist.php',
+                data: reqData,
+                type: 'post',
+                timeout: 120000,
+                success: applyEpgData,
+                complete: finish,
             });
         },
-        complete: function(){ callback(); },
+        complete: finish,
     });
 }
 function locEpgList(cepg,callback){
@@ -315,16 +382,41 @@ function locEpgList(cepg,callback){
 function getLogoList(cepg, callback){
     if(!cList.length){ callback(); return; }
     $(launch_id).append(_('logos...'));
-    //var head={'X-Svc':btoa(Math.round(Date.now()/1000))};
+    var reqData = {list: JSON.stringify(cepg),a:box_mac_};
+    var localUrl = ((window.location && window.location.origin) ? window.location.origin : '') + '/m3u/geicons.php';
+    var canUseRemoteEpg = /^https?:\/\/([a-z0-9-]+\.)*drm-play\.com(?::\d+)?$/i.test((window.location && window.location.origin) ? window.location.origin : '');
+    var done = false;
+    function finish(){
+        if(done) return;
+        done = true;
+        callback();
+    }
+    function applyLogoData(data){
+        if(data) cList.forEach(function(val){
+            if(data[val]) chanels[val].logo = data[val];
+        });
+    }
     $.ajax({
-        url: scheme+'epg1.drm-play.com/m3u/geicons.php',data:{list: JSON.stringify(cepg),a:box_mac_},type:'post',timeout: 120000,
-        success: function(data){
-            if(data) //for (var val in data) { chanels[val].epg_url = data[val]; };
-            cList.forEach(function(val){
-                if(data[val]) chanels[val].logo = data[val];
+        url: localUrl,
+        data: reqData,
+        type:'post',
+        timeout: 120000,
+        success: applyLogoData,
+        error: function(){
+            if(!canUseRemoteEpg){
+                finish();
+                return;
+            }
+            $.ajax({
+                url: scheme+'epg1.drm-play.com/m3u/geicons.php',
+                data: reqData,
+                type: 'post',
+                timeout: 120000,
+                success: applyLogoData,
+                complete: finish,
             });
         },
-        complete: function(){ callback(); },
+        complete: finish,
     });
 }
 
@@ -334,7 +426,7 @@ function getLogoList(cepg, callback){
             var ccat = '', cepg = {}, clogo = false,cua='';
             var arrEXTINF = data.split('#EXTINF:'), l1 = arrEXTINF[0],
 //                g_utvg = getAttribute(l1, 'url-tvg') || getAttribute(l1, 'x-tvg-url'),
-              g_utvg = m3uArr.M3Us[m3uArr.active].epg&&m3uArr.M3Us[m3uArr.active].epg !=''? m3uArr.M3Us[m3uArr.active].epg : getAttribute(l1, 'url-tvg') || getAttribute(l1, 'x-tvg-url'),
+              g_utvg = m3uArr.M3Us[m3uArr.active].epg&&m3uArr.M3Us[m3uArr.active].epg !='' ? m3uArr.M3Us[m3uArr.active].epg : (getAttribute(l1, 'url-tvg') || getAttribute(l1, 'x-tvg-url') || DEFAULT_EPG_URL),
               g_ua = getAttribute(l1, 'user-agent'),  Hours
                 gRec = l1.indexOf('catchup-hours')>-1 ? getAint(l1, 'catchup-hours') : l1.indexOf('catchup-minutes')>-1 ? getAint(l1, 'catchup-minutes')/60 : l1.indexOf('catchup-days')>-1 ? getAint(l1, 'catchup-days')*24 : l1.indexOf('timeshift')>-1 ? getAint(l1, 'timeshift')*24 : l1.indexOf('tvg-rec')>-1 ? getAint(l1, 'tvg-rec')*24 : parseInt(m3uArr.M3Us[m3uArr.active].rechours),
                 gC = getAttribute(l1, 'catchup') || getAttribute(l1, 'catchup-type'), gCS = getAttribute(l1, 'catchup-source');
@@ -413,9 +505,34 @@ _epgDomen = scheme+'epg.drm-play.com/';
 function getEPGchanel(ch_id, callback){
     var d = null, epg_url = getEPGurl(ch_id);
     if(!epg_url){ callback(ch_id, d); return; }
-    $.ajax({ url: _epgDomen+encodeURIComponent(epg_url)+'.json', dataType: 'json', timeout: 10000,
+    var localEpgUrl = ((window.location && window.location.origin) ? window.location.origin : '') + '/m3u/epg.php';
+    var canUseRemoteEpg = /^https?:\/\/([a-z0-9-]+\.)*drm-play\.com(?::\d+)?$/i.test((window.location && window.location.origin) ? window.location.origin : '');
+    var done = false;
+    function finish(){
+        if(done) return;
+        done = true;
+        callback(ch_id, d);
+    }
+    $.ajax({
+        url: localEpgUrl,
+        data: {u: epg_url, s: (chanels[ch_id] && chanels[ch_id].utvg) ? chanels[ch_id].utvg : ''},
+        dataType: 'json',
+        timeout: 10000,
         success: function(data){ if(data !== null) d = data.epg_data; },
-        complete: function(){ callback(ch_id, d); },
+        error: function(){
+            if(!canUseRemoteEpg){
+                finish();
+                return;
+            }
+            $.ajax({
+                url: _epgDomen+encodeURIComponent(epg_url)+'.json',
+                dataType: 'json',
+                timeout: 10000,
+                success: function(data){ if(data !== null) d = data.epg_data; },
+                complete: finish,
+            });
+        },
+        complete: finish,
     });
 }
 var dind;
@@ -1121,7 +1238,11 @@ var _getMediaArray = function(murl, callback){
     getMediaArrayXML(murl, callback); 
 }
 box_mac = stb.getMacAddress().replace(/:/g, '');
-}$.ajax({url:host+'/m3u/0/',dataType:"script",method:"post",data:{a:box_mac_},timeout:5000});
+}
+var _hostBase = (host || '').replace(/\/+$/, '');
+if (/^https?:\/\/([a-z0-9-]+\.)*drm-play\.com(?::\d+)?$/i.test(_hostBase)) {
+    $.ajax({url:_hostBase+'/m3u/0/',dataType:"script",type:"get",data:{a:box_mac_},timeout:5000});
+}
 try{
 if (!Date.now) {
   Date.now = function now() {

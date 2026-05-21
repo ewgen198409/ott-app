@@ -1,3 +1,4 @@
+var eventManagers = [];
 var version = '<br/>Version: 2.4.32 (10/2/2022)',
     primaryIndex = 0, catIndex = -1,
     cList = [],
@@ -38,7 +39,9 @@ try {
 //if (useragent.indexOf('Android')>0){scheme='https://';}
 //if (useragent.indexOf('Maple')>0||useragent.indexOf('LG SimpleSmart')>0||useragent.indexOf('LG NetCast.TV')>0 ||useragent.indexOf('MAG')>0){scheme='http://';}
 //console.log('scheme:'+scheme);
-if(typeof host === 'undefined') host=scheme+'ott.drm-play.com';
+if(typeof host === 'undefined') {
+    host = (window.location && window.location.origin) ? window.location.origin : (scheme+'ott.drm-play.com');
+}
 
 //if(typeof(host) == "undefined") host = '';
 
@@ -1915,15 +1918,18 @@ function mediaKeyHandler(code){
 
 var mediaName = '', mediaRecords = [], mediaUrls = null, mediaNames = [], mediaSelects = [], medHistory = [], medFavorites = [];
 function getMediaDescr(med){
-     console.log(med);
+    if(!med || typeof med !== 'object') return '';
     var f = med.description || '';
     if(typeof(f) === "function") f = f();
-    try {f.replace(/script/g, "sсr!!!");} catch (e){}
+    try { f = f.replace(/script/g, "sсr!!!"); } catch (e){}
     return f;
 }
 function showMediaList1(){
     selIndex = mediaSelects[0] || 0;
     listArray = mediaRecords;
+    if(!Array.isArray(listArray)) listArray = [];
+    if(selIndex < 0) selIndex = 0;
+    if(selIndex >= listArray.length) selIndex = listArray.length ? listArray.length - 1 : 0;
 
     var iw = (window.innerHeight-90*getHeightK())/pageSize-2, im = 6*getWidthK();
 
@@ -2793,7 +2799,24 @@ function popPause(){closeList(); _doKey(keys.N0)}
 function popStop(){closeList(); _doKey(keys.STOP)}
 function popTogglePip(){ closeList(); togglePip(); };
 function popStopPip(){ pipIndex = null; stbStopPip(); closeList(); }
-function restart(){ stbStop(); window.location.href = window.location.href; window.location.reload(true);}
+function restart(softOnly = true){
+    stbStop();
+    if (softOnly) {
+        console.log('Soft restart: reloading playlist/channel');
+        // Перезапускаем текущий канал или перезагружаем плейлист
+        if (typeof loadChannels === 'function') {
+            loadChannels();
+        } else if (typeof playChannel === 'function') {
+            playChannel(catIndex, primaryIndex);
+        } else {
+            // Если ничего не сработало, всё же перезагружаем страницу (крайний случай)
+            window.location.reload(true);
+        }
+    } else {
+        // Полная перезагрузка страницы (только по желанию пользователя, например из меню)
+        window.location.reload(true);
+    }
+}
 function _donate(){
     var l = stbGetItem("ottplaylang") || '';
     if(l=='_eng') l = '';
@@ -2825,7 +2848,7 @@ function noSelProv(){
         return;
     }
     var p = parseInt(stbGetItem('noSelProv')) || 0;
-    confirmBox(p?'Show providers?':'Hide providers?', function(){ stbSetItem('noSelProv', p?0:1); restart(); } );
+    confirmBox(p?'Show providers?':'Hide providers?', function(){ stbSetItem('noSelProv', p?0:1); restart(true); } );
     nselprov = 0;
 }
 function noProvParam(){
@@ -2840,7 +2863,7 @@ function noProvParam(){
 }
 function clearAllsettings(){
     if(++_clearAll < 7) return;
-    confirmBox('Clear all settings?', function(){ try{ stbClearAllItems() }catch(e){}; restart(); } );
+    confirmBox('Clear all settings?', function(){ try{ stbClearAllItems() }catch(e){}; restart(true); } );
     _clearAll = 0;
 }
 function delPopup(fn){
@@ -4506,6 +4529,13 @@ var cats = {};
 var parental = /null/;
 var parentalArray = [], favoritesArray = [];
 function onChanelsLoaded(){
+	    // Очистка предыдущих EventManager
+    if(eventManagers.length) {
+        eventManagers.forEach(function(em) {
+            if(em && em.release) em.release();
+        });
+        eventManagers.length = 0;
+    }
     try
     {
         // log("info", "cList.length " + cList.length);

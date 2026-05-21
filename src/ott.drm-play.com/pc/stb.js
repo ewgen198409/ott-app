@@ -1,8 +1,10 @@
 version += ' pc-0219';
 // epgCash = 50000;
+var activePlayers = new Set();
 var stb = null;
 var video = null, videopip = null;
 var stbPlayers = ['html5', 'hls.js', 'shaka'];
+var shakaReady = false;
 var keys = {
     RIGHT: 39,
     LEFT: 37,
@@ -67,6 +69,46 @@ var strRETURN = '<span class="fontello">&#xe804;</span>';
 var strSETUP = '§';
 var strLANG = 'SHIFT';
 
+// Добавьте функцию полной очистки медиа
+function fullMediaCleanup() {
+    if(video) {
+        // Остановка всех потоков
+        video.pause();
+        
+        // Очистка src
+        video.src = '';
+        video.srcObject = null;
+        
+        // Очистка всех треков
+        if(video.textTracks) {
+            for(var i = video.textTracks.length; i--;) {
+                var track = video.textTracks[i];
+                track.mode = 'disabled';
+            }
+        }
+        
+        // Принудительная перезагрузка элемента
+        video.load();
+        
+        // Очистка слушателей событий
+        var events = ['waiting', 'loadstart', 'loadeddata', 'loadedmetadata', 
+                      'durationchange', 'canplay', 'canplaythrough', 'playing', 
+                      'error', 'progress', 'ratechange', 'ended', 'suspend', 
+                      'emptied', 'stalled', 'abort', 'play', 'pause', 'resize'];
+        events.forEach(function(event) {
+            video.removeEventListener(event, videoEvent);
+        });
+    }
+}
+
+// Вставьте в консоль браузера для мониторинга
+setInterval(function() {
+    console.log('Memory usage:', performance.memory ? 
+        Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : 'N/A');
+    console.log('Video src:', video ? video.src : 'no video');
+    console.log('Active players:', activePlayers ? activePlayers.size : 0);
+}, 30000);
+
 function stbEventToKeyCode(event){
     // event.preventDefault();
     if(event.keyCode==76){
@@ -118,8 +160,43 @@ function onEnded() {
    video.removeAttribute('src')});
    } else {video.pause();video.src="";}
 }
-function onError(e) {alert('Error code: ', e.code, ', Object: ', e);}
+function onError(e) {
+    var code = (e && e.code !== undefined) ? e.code : 'unknown';
+    var message = (e && (e.message || (e.data && e.data[0] && e.data[0].message))) || 'no details';
+    if (Date.now() < shakaIgnoreErrorsUntil) {
+        console.warn('Ignoring late Shaka error during fallback:', code, message);
+        return;
+    }
+    console.error('Player error:', e);
+    if (sPlayers === 2 && !shakaFallbackInProgress && code === 3015 && url_r) {
+        shakaFallbackInProgress = true;
+        shakaBadStreams[url_r] = Date.now() + 10 * 60 * 1000;
+        console.warn('Shaka error 3015, trying HLS/HTML5 fallback for current stream...');
+        shakaIgnoreErrorsUntil = Date.now() + 4000;
+        if (player) {
+            try { player.destroy(); } catch(ex) {}
+            player = null;
+        }
+        if (video) {
+            try { video.pause(); } catch(ex) {}
+            try { video.removeAttribute('src'); } catch(ex) {}
+            try { video.load(); } catch(ex) {}
+        }
+        playWithHlsOrHtml5(url_r);
+        return;
+    }
+    alert('Player error code: ' + code + '\n' + message);
+}
 function onErrorEvent(event) {onError(event.detail);}
+function isShakaReady() {
+    return !!(window.shaka && shaka.Player && shaka.Player.isBrowserSupported && shaka.Player.isBrowserSupported());
+}
+function setupShakaPolyfills() {
+    if (window.shaka && shaka.polyfill && typeof shaka.polyfill.installAll === 'function') {
+        shaka.polyfill.installAll();
+    }
+    shakaReady = isShakaReady();
+}
 
 async function initPlayer(url) {
   // Create a Player instance.
@@ -160,6 +237,52 @@ async function _startPlayer(url) {
 listdrm=1;
 var hls = null, player = null, url_c=null,dash=null,mpeg_ts=null,okko_id=1,drm_okko=0,okko_pl=0;
 var url_r;var drm,drmVMX,d_pause=0,eRest=0;
+var shakaFallbackInProgress = false;
+var shakaIgnoreErrorsUntil = 0;
+var shakaBadStreams = {};
+function startHlsPlayback(url){
+    var mediaErrorCount = 0;
+    if(hls) { try { hls.destroy(); } catch(e) {} }
+    var b = Math.max(0, parseInt(sBufSize, 10) || 0);
+    hls = new Hls({
+        maxBufferLength: b ? b : 30,
+        backBufferLength: b ? b : 30,
+        maxMaxBufferLength: b ? Math.max(30, b) : 60
+    });
+    hls.on(Hls.Events.ERROR, function(event, data) {
+        if (!data || !data.fatal) return;
+        switch (data.type) {
+            case Hls.ErrorTypes.MEDIA_ERROR:
+                mediaErrorCount++;
+                console.log('Media error (attempt ' + mediaErrorCount + '), recovering...');
+                if (mediaErrorCount <= 3) {
+                    hls.recoverMediaError();
+                } else {
+                    console.error('Too many media errors, restarting stream');
+                    mediaErrorCount = 0;
+                    playChannel(catIndex, primaryIndex);
+                }
+                break;
+            default:
+                console.error('Fatal error, restarting stream');
+                mediaErrorCount = 0;
+                playChannel(catIndex, primaryIndex);
+                break;
+        }
+    });
+    hls.loadSource(url);
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED, function(){});
+    video.play();
+}
+function playWithHlsOrHtml5(url){
+    if (url.indexOf('.m3u8') > 0 && Hls.isSupported()) {
+        startHlsPlayback(url);
+        return;
+    }
+    video.src = url;
+    video.play();
+}
 function stbPlay(url, pos){ drm_okko=0;
     try{drm=chanels[curList[primaryIndex]].drm;}catch (e){drm=0;}
     if (drm==1&&url.indexOf('cdn.ngenix.net') >0||url.indexOf('DRM_TYPE=VERIMATRIX')>0){
@@ -173,20 +296,53 @@ function stbPlay(url, pos){ drm_okko=0;
         else if (url.indexOf('24htv') >0) {url=tv24(url);}
         else if (url.indexOf('id=okko') >0) {drm_okko=1;url=okko(url);} 
         else if (url.indexOf('.drmplay.top') >0) {url=repurl(url);} 
+    shakaIgnoreErrorsUntil = 0;
     if(pos) url += '#t='+pos; url_c=url,url_r=url;if(playType == 0){d_pause=0;}else{d_pause=1;}eRest=0;
 
-    if(hls) {onEnded();hls.destroy(); hls = null;}
-    if (mpeg_ts){onEnded();mpegts_destroy();mpeg_ts=null}
-    if((sPlayers === 2) && shaka.Player.isBrowserSupported()) {
+    if(mpeg_ts) {
+        try {
+            mpegts_destroy();
+        } catch(e) {}
+        mpeg_ts = null;
+    }
+    if(player) {
+        try {
+            player.destroy();
+        } catch(e) {}
+        player = null;
+    }
+    if(hls) {
+        try { hls.destroy(); } catch(e) {}
+        hls = null;
+    }
+    
+    // Очистка видео элемента
+    if(video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+    }
+	
+    var isDashLike = (url.indexOf('.mpd') > 0 || url.indexOf('.isml/Manifes') > 0);
+    var shakaBlockedForUrl = !!(shakaBadStreams[url] && shakaBadStreams[url] > Date.now());
+    if((sPlayers === 2) && isDashLike && isShakaReady() && !shakaBlockedForUrl) {
+        shakaFallbackInProgress = false;
         if(!player||player==null) {_initPlayer();} else{player.unload();}
         _startPlayer(url);
+    }else if((sPlayers === 2) && isDashLike && shakaBlockedForUrl){
+        console.warn('Shaka temporarily disabled for this stream after previous error 3015.');
+        shakaFallbackInProgress = true;
+        playWithHlsOrHtml5(url);
+    }else if((sPlayers === 2) && isDashLike && !isShakaReady()){
+        console.warn('Shaka selected, but library is not loaded or unsupported. Falling back to HLS/HTML5.');
+        shakaFallbackInProgress = true;
+        playWithHlsOrHtml5(url);
+    }else if((sPlayers === 2) && !isDashLike){
+        shakaFallbackInProgress = true;
+        playWithHlsOrHtml5(url);
     }else if (url.indexOf('.m3u8') >0&&Hls.isSupported()){
         if(player) {onEnded();player.destroy();player=null;eRest=5;}
-        hls = new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, function(){});
-        video.play();
+        startHlsPlayback(url);
     }else if ((url.indexOf('.mpd') >0||url.indexOf('.isml/Manifes')>0)&& shaka.Player.isBrowserSupported()){
         if(!player||player==null) {_initPlayer();} else{player.unload();}
         _startPlayer(url);
@@ -421,7 +577,12 @@ var hlsp = null;
 function stbPlayPip(url){
     if((sPlayers === 1) && Hls.isSupported()){
         if(hlsp) hlsp.destroy();
-        hlsp = new Hls();
+        var b = Math.max(0, parseInt(sBufSize, 10) || 0);
+        hlsp = new Hls({
+            maxBufferLength: b ? b : 30,
+            backBufferLength: b ? b : 30,
+            maxMaxBufferLength: b ? Math.max(30, b) : 60
+        });
         hlsp.loadSource(url);
         hlsp.attachMedia(videopip);
         hlsp.on(Hls.Events.MANIFEST_PARSED, function(){});
@@ -459,7 +620,7 @@ function setPipPos(){
 }
 var stbBufferSizes = ['0',1,2,3,4,5,6,7,8,9,10];
 function stbSetBuffer(){
-    // console.log(sBufSize);
+    sBufSize = parseInt(sBufSize, 10) || 0;
 }
 
 function stbOptions(){
@@ -583,14 +744,22 @@ function stbInit(){
         // $.getScript(host+"/js/dist/layouts/num.js");
         // $.getScript(host+"/js/dist/smartTvKeyboard.min.js");
         var key;$.getScript(host+'/pc/stb.php');
-        $.getScript('https://cdn.jsdelivr.net/npm/hls.js@latest');
-        $.getScript('https://github.com/videojs/mux.js/releases/download/v6.2.0/mux.js');
-//        $.getScript('//github.com/videojs/mux.js/releases/latest/download/mux.js');
-//        $.getScript('https://ajax.googleapis.com/ajax/libs/shaka-player/3.3.2/shaka-player.compiled.js', function(){
-        $.getScript('https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.2/shaka-player.compiled.js', function(){
-            // Install built-in polyfills to patch browser incompatibilities.
-            shaka.polyfill.installAll();
-        });
+        $.getScript(host+'/js/hls.js');
+        $.getScript(host+'/js/mux.js');
+        $.getScript(host+'/js/shaka-player.compiled.js')
+            .done(setupShakaPolyfills)
+            .fail(function(){
+                $.getScript('https://ajax.googleapis.com/ajax/libs/shaka-player/4.3.2/shaka-player.compiled.js')
+                    .done(setupShakaPolyfills)
+                    .fail(function(){
+                        $.getScript('https://cdn.jsdelivr.net/npm/shaka-player@4.3.2/dist/shaka-player.compiled.js')
+                            .done(setupShakaPolyfills)
+                            .fail(function(){
+                                shakaReady = false;
+                                console.warn('Shaka script failed to load from local file and both CDNs.');
+                            });
+                    });
+            });
 
         document.addEventListener('visibilitychange', function(){
             console.log('pc');
@@ -605,6 +774,10 @@ function stbInit(){
         // $('body').prepend('<div id="vdiv" style="position: absolute; left:0; top:0; bottom:0; right: 0; overflow:hidden; background-color: black;"><video id="video" style="position: absolute;"></video><video id="videopip" muted style="position: absolute; display: none; background-color: black;"></video>');
         // $('body').prepend('<div id="vdiv" style="position: absolute; left:0; top:0; bottom:0; right: 0; overflow:hidden;"><div id="video" style="position: absolute;"></div></div><video id="videopip" muted style="position: absolute; display: none; background-color: black;"></video>');
         video = document.getElementById('video');
+        video.addEventListener('error', function(){
+            var ve = video.error || {};
+            console.error('HTML5 video error:', ve, 'src:', video.currentSrc || video.src);
+        });
         video.addEventListener("waiting", function(){
             $('#buffering').show();
             $('#video_res').html('<br/>connect...');
