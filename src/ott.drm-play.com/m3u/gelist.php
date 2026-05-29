@@ -1,4 +1,5 @@
 <?php
+@set_time_limit(12);
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -23,8 +24,8 @@ function requestRemote($url, $postData) {
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_ENCODING, '');
         curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
             'Content-Type: application/x-www-form-urlencoded',
             'Content-Length: ' . strlen($postData),
@@ -46,7 +47,7 @@ function requestRemote($url, $postData) {
             'header' => "Content-Type: application/x-www-form-urlencoded\r\n" .
                 "Content-Length: " . strlen($postData) . "\r\n",
             'content' => $postData,
-            'timeout' => 30,
+            'timeout' => 6,
             'ignore_errors' => true,
         ),
     ));

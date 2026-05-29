@@ -5355,7 +5355,8 @@ function loadChannels(){
     // if(isNaN(sNextCount)) sNextCount = 3;
 //    sRestart = parseInt(stbGetItem('sRestart')) || 0;
     eAce=stbGetItem('eAce')||'127.0.0.1:6878';
-    sPlayers = parseInt(providerGetItem('sPlayers')) || 0;
+    sPlayers = parseInt(providerGetItem('sPlayers'));
+    if(isNaN(sPlayers)) sPlayers = 1;
 //    ePlay = parseInt(stbGetItem('ePlay')) || 1;
     ePlay = parseInt(providerGetItem('ePlay')) || 0;
 //    eAceVLC=stbGetItem('eAceVLC')||0;

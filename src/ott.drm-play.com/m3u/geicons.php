@@ -1,4 +1,5 @@
 <?php
+@set_time_limit(8);
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
@@ -20,15 +21,14 @@ $context = stream_context_create(array(
         'header' => "Content-Type: application/x-www-form-urlencoded\r\n" .
             "Content-Length: " . strlen($postData) . "\r\n",
         'content' => $postData,
-        'timeout' => 30,
+        'timeout' => 5,
         'ignore_errors' => true,
     ),
 ));
 
 $result = @file_get_contents('http://epg1.drm-play.com/m3u/geicons.php', false, $context);
 
-if ($result === false) {
-    http_response_code(502);
+if ($result === false || stripos($result, '<!DOCTYPE html') !== false || stripos($result, 'Just a moment') !== false || json_decode($result, true) === null) {
     echo '{}';
     exit;
 }

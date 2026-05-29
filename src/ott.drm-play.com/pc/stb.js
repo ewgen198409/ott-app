@@ -276,6 +276,7 @@ function startHlsPlayback(url){
     video.play();
 }
 function playWithHlsOrHtml5(url){
+    url = proxifyHttpHlsForHttps(url);
     if (url.indexOf('.m3u8') > 0 && Hls.isSupported()) {
         startHlsPlayback(url);
         return;
@@ -296,6 +297,7 @@ function stbPlay(url, pos){ drm_okko=0;
         else if (url.indexOf('24htv') >0) {url=tv24(url);}
         else if (url.indexOf('id=okko') >0) {drm_okko=1;url=okko(url);} 
         else if (url.indexOf('.drmplay.top') >0) {url=repurl(url);} 
+    url = proxifyHttpHlsForHttps(url);
     shakaIgnoreErrorsUntil = 0;
     if(pos) url += '#t='+pos; url_c=url,url_r=url;if(playType == 0){d_pause=0;}else{d_pause=1;}eRest=0;
 
@@ -426,7 +428,7 @@ function stbInfo(){
         '<br/>appVersion: ' + navigator.appVersion+
         '<br/>platform: ' + navigator.platform
     );
-    $.get('http://api.ipify.org', function(data){ $('#listAbout').append('<br/>Ip address: ' + data); });
+    $.get('https://api.ipify.org', function(data){ $('#listAbout').append('<br/>Ip address: ' + data); });
 }
 
 // var sZoom = 0, arrayZoom = ['1', '1.1', '1.2', '1.3', '1.4', '1.5'];
@@ -574,7 +576,13 @@ function showEditKey2(){
 // }
 
 var hlsp = null;
+function proxifyHttpHlsForHttps(url){
+    if(!url || !window.location || window.location.protocol !== 'https:') return url;
+    if(url.indexOf('http://') !== 0 || url.indexOf('.m3u8') === -1) return url;
+    return host + '/m3u/hls-proxy.php?url=' + encodeURIComponent(url);
+}
 function stbPlayPip(url){
+    url = proxifyHttpHlsForHttps(url);
     if((sPlayers === 1) && Hls.isSupported()){
         if(hlsp) hlsp.destroy();
         var b = Math.max(0, parseInt(sBufSize, 10) || 0);

@@ -2,7 +2,16 @@ version += ' m3u-0218';
 var m3uArr, _number = 0;
 p_pref = 'm3u';
 parental = /XXX|Взрослые|Для взрослых|Взрослое|Эротика|18+|Adults|ХХХ/;
-var DEFAULT_EPG_URL = 'http://epg.it999.ru/edem.xml.gz';
+var DEFAULT_EPG_URL = 'https://epg.it999.ru/edem.xml.gz';
+
+function preferHttpsOnHttpsPage(url) {
+    if(!url || !window.location || window.location.protocol !== 'https:') return url;
+    // Меняем только известные источники, у которых HTTPS проверенно работает.
+    return url
+        .replace(/^http:\/\/cdntv\.online\//i, 'https://cdntv.online/')
+        .replace(/^http:\/\/m\.cdntv\.online\//i, 'https://m.cdntv.online/')
+        .replace(/^http:\/\/epg\.cdntv\.online\//i, 'https://epg.cdntv.online/');
+}
 
 function cleanupResources() {
     // Очистка таймеров
@@ -55,12 +64,17 @@ function loadM3Uparams(){
     m3uArr = providerGetItem("m3uArr");
     drm_list=parseInt(providerGetItem('drm_list')) || 0;
     if(!m3uArr) {
-        m3uArr = {active:0, M3Us: [{www:'http://cdntv.online/hls/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', epg:'http://epg.cdntv.online/full.xml.gz', medUrl:'http://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]};if(drm_list==0){drm_list=1;} 
+        m3uArr = {active:0, M3Us: [{www:'https://cdntv.online/low/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', epg:'https://epg.cdntv.online/full.xml.gz', medUrl:'https://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]};if(drm_list==0){drm_list=1;}
     }
     else {try{ m3uArr = JSON.parse(m3uArr); 
-    }catch(e){ m3uArr = {active:0, M3Us: [{www:'http://cdntv.online/hls/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', epg:'http://epg.cdntv.online/full.xml.gz', medUrl:'http://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]}; }}
+    }catch(e){ m3uArr = {active:0, M3Us: [{www:'https://cdntv.online/low/yxe83avfji/playlist.m3u8', rechours:0, name:'VipLime', epg:'https://epg.cdntv.online/full.xml.gz', medUrl:'https://m.cdntv.online/f/yxe83avfji/playlist.m3u8'},{www:'https://iptv.org.ua/iptv/f/kinofilm.m3u', rechours:0, name:'BigMediateca', medUrl:'https://iptv.org.ua/iptv/f/kinofilm.m3u'}]}; }}
     for(var i = m3uArr.M3Us.length; i < 25; i++)
         m3uArr.M3Us[i] = {www:'', rechours:0};
+    for(var j = 0; j < m3uArr.M3Us.length; j++){
+        m3uArr.M3Us[j].www = preferHttpsOnHttpsPage(m3uArr.M3Us[j].www || '');
+        m3uArr.M3Us[j].epg = preferHttpsOnHttpsPage(m3uArr.M3Us[j].epg || '');
+        m3uArr.M3Us[j].medUrl = preferHttpsOnHttpsPage(m3uArr.M3Us[j].medUrl || '');
+    }
     if(browserName() == 'dune') try{
         var params = window.location.href.split('?')[1].split('&');
         params.forEach(function(item){
@@ -1167,7 +1181,9 @@ function getMediaArrayXML(murl, callback){ //true
                     data=data.replace(/(\<title\>.+?)\&(.+?\<\/title\>)/g,"$1 | $2" );
                     if (murl.indexOf("filmix.red")){
                     data=data.replace(/channels\>/g,"items>" );
-                    data=data.replace(/\<stream_url\>https\:\/\//g,"<stream_url>http://" );
+                    if(window.location && window.location.protocol !== 'https:') {
+                        data=data.replace(/\<stream_url\>https\:\/\//g,"<stream_url>http://" );
+                    }
                     }
 
                     if(i>0) data = data.substr(i);
